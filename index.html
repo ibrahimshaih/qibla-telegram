@@ -1,440 +1,526 @@
-<!doctype html>
-<html lang="ru" data-theme="dark">
+<!DOCTYPE html>
+<html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="color-scheme" content="dark light">
-<title>Кибла</title>
-<!--
-  Компас Киблы. Один файл для двух мест:
-   • GitHub Pages (ibrahimshaih/qibla-telegram) — кнопка в @Salah_Times_robot;
-   • мини-апп «Для мусульман» — nikahonline.app/hub/qibla/ (там же кнопка «Назад» в хаб).
-  Источник: D:\bots\musulman_hub\qibla\index.html. Переделан 22.10.2026:
-  сглаживание и переход 359→0 без прокрутки, учёт поворота экрана, курс 0° на iOS,
-  роза ветров без внешних картинок, геолокация Telegram, подсказка «куда повернуться»,
-  вибрация при совпадении, расстояние до Каабы, переводы на кнопке «Старт».
--->
-<script src="https://telegram.org/js/telegram-web-app.js?59"></script>
-<style>
-@font-face { font-family: "Rubik"; font-weight: 400 800; font-display: swap; src: url("fonts/rubik-arabic.woff2") format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFC; }
-@font-face { font-family: "Rubik"; font-weight: 400 800; font-display: swap; src: url("fonts/rubik-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-@font-face { font-family: "Rubik"; font-weight: 400 800; font-display: swap; src: url("fonts/rubik-cyrillic-ext.woff2") format("woff2"); unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F; }
-@font-face { font-family: "Rubik"; font-weight: 400 800; font-display: swap; src: url("fonts/rubik-latin-ext.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+20A0-20AB, U+20AD-20C4; }
-@font-face { font-family: "Rubik"; font-weight: 400 800; font-display: swap; src: url("fonts/rubik-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2212, U+FEFF; }
-
-:root {
-  --ease: cubic-bezier(.16, 1, .3, 1);
-  /* --tg-top / --tg-bottom ставит скрипт в полноэкранном режиме Telegram */
-  --safe-top: var(--tg-top, env(safe-area-inset-top, 0px));
-  --safe-bottom: var(--tg-bottom, env(safe-area-inset-bottom, 0px));
-}
-:root[data-theme="dark"] {
-  --ground: #121833; --ground-2: #1b2443; --surface: #232e56; --surface-2: #2b3866;
-  --ink: #f3ecdf; --ink-2: #b7bdd4; --ink-3: #9aa2c2; --line: rgba(243, 236, 223, .14);
-  --saffron: #f2b84b; --saffron-ink: #f2b84b; --pist: #a4d494; --on: #18203c;
-}
-:root[data-theme="light"] {
-  --ground: #ece4d4; --ground-2: #e2d8c4; --surface: #f8f3e9; --surface-2: #e4d9c5;
-  --ink: #1b2443; --ink-2: #4c5576; --ink-3: #6f7794; --line: rgba(27, 36, 67, .16);
-  --saffron: #c98a12; --saffron-ink: #8a5c00; --pist: #477f3c; --on: #fffaf0;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body {
-  font-family: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: radial-gradient(120% 70% at 50% 38%, var(--ground-2) 0%, var(--ground) 70%);
-  color: var(--ink);
-  -webkit-tap-highlight-color: transparent;
-  overflow: hidden;
-}
-html[data-fs] body::after {
-  content: ""; position: fixed; left: 0; right: 0; top: 0; z-index: 20; pointer-events: none;
-  height: calc(var(--safe-top) + 6px);
-  background: linear-gradient(to bottom, var(--ground) 0%, color-mix(in srgb, var(--ground) 80%, transparent) 60%, transparent 100%);
-}
-button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
-.app {
-  height: 100%; max-width: 480px; margin: 0 auto;
-  display: flex; flex-direction: column; align-items: center;
-  padding: calc(var(--safe-top) + 18px) 18px calc(var(--safe-bottom) + 18px);
-}
-
-/* Шапка: угол Киблы и расстояние */
-.head { text-align: center; }
-.head__label { font-size: 14px; color: var(--ink-2); }
-.head__deg { font-size: 44px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.head__deg small { font-size: 20px; font-weight: 600; color: var(--ink-3); }
-.head__meta { margin-top: 4px; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-
-/* Компас */
-.compass { position: relative; width: min(84vw, 340px); aspect-ratio: 1; margin: auto 0; }
-.compass__phone {
-  /* Неподвижная метка «куда смотрит телефон» */
-  position: absolute; left: 50%; top: -14px; width: 0; height: 0; transform: translateX(-50%);
-  border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 16px solid var(--ink-2);
-  z-index: 3; transition: border-top-color .3s;
-}
-.dial { position: absolute; inset: 0; will-change: transform; }
-.dial svg { width: 100%; height: 100%; overflow: visible; }
-.dial__face { fill: var(--surface); }
-.dial__rim { fill: none; stroke: var(--line); stroke-width: 1.5; }
-.dial__stitch { fill: none; stroke: var(--saffron); stroke-width: 1.6; stroke-dasharray: 4 3.5; opacity: .55; }
-.dial__tick { stroke: var(--ink-3); stroke-width: 1.2; stroke-linecap: round; }
-.dial__tick--major { stroke: var(--ink-2); stroke-width: 2; }
-.dial__card { fill: var(--ink-2); font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
-.dial__card--n { fill: #e46a6c; }
-.dial__qibla-line { stroke: var(--saffron); stroke-width: 2.5; stroke-dasharray: 5 4; stroke-linecap: round; }
-.center { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 5px var(--surface-2); z-index: 2; }
-
-.compass.is-aligned .compass__phone { border-top-color: var(--pist); }
-.compass.is-aligned .dial__face { fill: color-mix(in srgb, var(--pist) 16%, var(--surface)); }
-.compass.is-aligned .dial__qibla-line { stroke: var(--pist); }
-
-/* Подсказка */
-.hint { min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-.hint__main { font-size: 20px; font-weight: 700; }
-.hint__sub { font-size: 14px; color: var(--ink-2); line-height: 1.4; max-width: 320px; }
-.hint__main.is-ok { color: var(--pist); }
-.hint__arrow { display: inline-block; width: 22px; height: 22px; vertical-align: -4px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-
-.start {
-  min-height: 52px; padding: 0 28px; border-radius: 16px;
-  background: var(--saffron); color: var(--on); font-size: 17px; font-weight: 700;
-  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, .6);
-  transition: transform .2s var(--ease);
-}
-.start:active { transform: scale(.97); }
-.start[hidden] { display: none; }
-
-.calib { display: none; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 14px; border-radius: 16px; background: var(--surface); font-size: 13px; line-height: 1.4; color: var(--ink-2); }
-.calib.is-on { display: flex; }
-.calib svg { width: 56px; height: 30px; flex: none; fill: none; stroke: var(--saffron); stroke-width: 2.2; stroke-linecap: round; }
-.calib .dot { fill: var(--saffron); stroke: none; offset-path: path("M14 15c0-7 9-9 14 0s14 7 14 0-9-9-14 0-14 7-14 0z"); animation: eight 2.4s linear infinite; }
-@keyframes eight { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-@media (prefers-reduced-motion: reduce) { .calib .dot { animation: none; } }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Qibla Finder</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #000;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .start-button {
+            position: fixed;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #ff0055, #ff6b9d);
+            color: white;
+            border: 2px solid #ff0055;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 0 25px rgba(255, 0, 85, 0.7), 0 0 50px rgba(255, 0, 85, 0.4);
+            z-index: 100;
+            animation: pulse 2s infinite;
+            transition: all 0.3s ease;
+        }
+        
+        .start-button:active {
+            transform: translateX(-50%) scale(0.95);
+        }
+        
+        .start-button.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 25px rgba(255, 0, 85, 0.7), 0 0 50px rgba(255, 0, 85, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 35px rgba(255, 0, 85, 0.9), 0 0 70px rgba(255, 0, 85, 0.6);
+            }
+        }
+        
+        .compass-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            transition: transform 0.1s ease-out;
+            margin-top: 60px;
+        }
+        
+        .compass-disk {
+            width: 100%;
+            height: 100%;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Compass_rose_en_04_02.svg/1024px-Compass_rose_en_04_02.svg.png') no-repeat center;
+            background-size: contain;
+            filter: invert(1) drop-shadow(0 0 2px #00ff88);
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .qibla-pointer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 130px;
+            background: #ff0055;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            z-index: 10;
+            filter: drop-shadow(0 0 12px #ff0055) drop-shadow(0 0 20px #ff0055);
+            display: none;
+            border-radius: 3px;
+        }
+        
+        .kaaba-icon {
+            position: absolute;
+            top: -46px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 40px;
+            z-index: 15;
+            filter: drop-shadow(0 0 10px rgba(255, 0, 85, 0.8));
+            display: block;
+        }
+        
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 11;
+        }
+        
+        .info {
+            margin-top: 40px;
+            text-align: center;
+            z-index: 20;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 32px;
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            font-weight: bold;
+        }
+        
+        p {
+            color: #aaa;
+            margin: 12px 0;
+            font-size: 16px;
+        }
+        
+        .error {
+            color: #ff0055;
+        }
+        
+        .infinity-icon {
+            position: fixed;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 51;
+        }
+        
+        .infinity-icon svg {
+            width: 90px;
+            height: 48px;
+            filter: drop-shadow(0 0 20px rgba(255, 0, 85, 0.9));
+        }
+        
+        .calibration-info {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70%;
+            max-width: 280px;
+            padding: 8px 10px;
+            background: linear-gradient(135deg, rgba(255, 0, 85, 0.15), rgba(255, 107, 157, 0.15));
+            border: 1px solid rgba(255, 0, 85, 0.3);
+            border-radius: 12px;
+            text-align: center;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+        }
+        
+        .infinity-icon .arrow1 {
+            animation: move-arrow1 3s ease-in-out infinite;
+        }
+        
+        .infinity-icon .arrow2 {
+            animation: move-arrow2 3s ease-in-out infinite;
+        }
+        
+        @keyframes move-arrow1 {
+            0% { opacity: 1; transform: translate(0, 0); }
+            25% { opacity: 0.7; transform: translate(8px, -5px); }
+            50% { opacity: 1; transform: translate(15px, 0); }
+            75% { opacity: 0.7; transform: translate(8px, 5px); }
+            100% { opacity: 1; transform: translate(0, 0); }
+        }
+        
+        @keyframes move-arrow2 {
+            0% { opacity: 1; transform: translate(0, 0); }
+            25% { opacity: 0.7; transform: translate(-8px, 5px); }
+            50% { opacity: 1; transform: translate(-15px, 0); }
+            75% { opacity: 0.7; transform: translate(-8px, -5px); }
+            100% { opacity: 1; transform: translate(0, 0); }
+        }
+        
+        .calibration-info p {
+            color: #ccc;
+            font-size: 11px;
+            line-height: 1.3;
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
-<div class="app">
-  <header class="head">
-    <div class="head__label" id="t-label">Кибла</div>
-    <div class="head__deg" id="deg">—<small>°</small></div>
-    <div class="head__meta" id="meta"></div>
-  </header>
-
-  <div class="compass" id="compass">
-    <span class="compass__phone" aria-hidden="true"></span>
-    <div class="dial" id="dial">
-      <svg viewBox="-170 -170 340 340" id="dial-svg" aria-hidden="true"></svg>
+    <button class="start-button hidden" id="startButton">🚀 START</button>
+    
+    <div class="compass-container">
+        <div class="kaaba-icon" id="kaabaIcon">🕋</div>
+        <div class="compass-disk" id="compassDisk"></div>
+        <div class="qibla-pointer" id="qiblaPointer"></div>
+        <div class="center-dot"></div>
     </div>
-    <span class="center" aria-hidden="true"></span>
-  </div>
-
-  <div class="hint" aria-live="polite">
-    <div class="hint__main" id="hint-main"></div>
-    <div class="hint__sub" id="hint-sub"></div>
-  </div>
-  <button class="start" type="button" id="start" hidden></button>
-  <div class="calib" id="calib">
-    <svg viewBox="0 0 56 30" aria-hidden="true"><path d="M14 15c0-7 9-9 14 0s14 7 14 0-9-9-14 0-14 7-14 0z" opacity=".5"/><circle class="dot" r="3.2"/></svg>
-    <span id="calib-text"></span>
-  </div>
-</div>
-
-<script>
-(function () {
-  "use strict";
-  var tg = window.Telegram && window.Telegram.WebApp;
-  var ver = function (v) { return !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(v)); };
-
-  var KAABA = { lat: 21.422487, lon: 39.826206 };
-  var ALIGN_DEG = 4;
-
-  var T = {
-    ru: { qibla: "Кибла", from_north: "от севера по часовой", km: "{d} км до Каабы", start: "Включить компас",
-      locating: "Определяю местоположение…", no_geo: "Не удалось определить место. Разрешите геолокацию и откройте компас снова.",
-      turn_right: "Повернитесь вправо на {d}°", turn_left: "Повернитесь влево на {d}°", aligned: "Вы смотрите на Киблу",
-      sub_turn: "Держите телефон горизонтально. Кааба на шкале должна встать под верхнюю метку.",
-      sub_ok: "Направление совпадает с Киблой",
-      press_start: "Нажмите, чтобы включить датчики телефона", denied: "Нет доступа к датчикам. Разрешите «Движение и ориентация» в настройках браузера.",
-      no_compass: "На этом устройстве нет компаса. Встаньте лицом на север и повернитесь на {d}° по часовой.",
-      calib: "Компас неточен: нарисуйте телефоном в воздухе восьмёрку и отойдите от металла и магнитов.",
-      by_city: "по городу {c}" },
-    en: { qibla: "Qibla", from_north: "clockwise from north", km: "{d} km to the Kaaba", start: "Turn on compass",
-      locating: "Finding your location…", no_geo: "Couldn't get your location. Allow geolocation and open the compass again.",
-      turn_right: "Turn right by {d}°", turn_left: "Turn left by {d}°", aligned: "You are facing the Qibla",
-      sub_turn: "Hold the phone flat. Bring the Kaaba on the dial under the top mark.",
-      sub_ok: "Your direction matches the Qibla",
-      press_start: "Tap to turn on the phone's sensors", denied: "No sensor access. Allow Motion & Orientation in your browser settings.",
-      no_compass: "This device has no compass. Face north and turn {d}° clockwise.",
-      calib: "The compass is inaccurate: draw a figure 8 in the air with your phone and move away from metal and magnets.",
-      by_city: "for {c}" },
-    ar: { qibla: "القبلة", from_north: "من الشمال باتجاه عقارب الساعة", km: "{d} كم إلى الكعبة", start: "تشغيل البوصلة",
-      locating: "جارٍ تحديد موقعك…", no_geo: "تعذر تحديد الموقع. اسمح بالوصول إلى الموقع وافتح البوصلة مجددًا.",
-      turn_right: "استدر يمينًا {d}°", turn_left: "استدر يسارًا {d}°", aligned: "أنت متجه إلى القبلة",
-      sub_turn: "أمسك الهاتف أفقيًا وأوصل الكعبة في القرص إلى العلامة العلوية.",
-      sub_ok: "اتجاهك يطابق القبلة",
-      press_start: "اضغط لتشغيل مستشعرات الهاتف", denied: "لا يوجد إذن بالمستشعرات. اسمح بالحركة والاتجاه في إعدادات المتصفح.",
-      no_compass: "لا توجد بوصلة في هذا الجهاز. اتجه إلى الشمال ثم استدر {d}° مع عقارب الساعة.",
-      calib: "البوصلة غير دقيقة: ارسم بالهاتف رقم 8 في الهواء وابتعد عن المعادن والمغناطيس.",
-      by_city: "حسب مدينة {c}" },
-    tr: { qibla: "Kıble", from_north: "kuzeyden saat yönünde", km: "Kâbe'ye {d} km", start: "Pusulayı aç",
-      locating: "Konum bulunuyor…", no_geo: "Konum alınamadı. Konum iznini verip pusulayı yeniden açın.",
-      turn_right: "Sağa {d}° dönün", turn_left: "Sola {d}° dönün", aligned: "Kıbleye dönüksünüz",
-      sub_turn: "Telefonu yatay tutun. Kadrandaki Kâbe'yi üstteki işaretin altına getirin.",
-      sub_ok: "Yönünüz kıbleyle aynı",
-      press_start: "Telefon sensörlerini açmak için dokunun", denied: "Sensör izni yok. Tarayıcı ayarlarında Hareket ve Yön'e izin verin.",
-      no_compass: "Bu cihazda pusula yok. Kuzeye dönüp saat yönünde {d}° dönün.",
-      calib: "Pusula hatalı: telefonla havada 8 çizin, metal ve mıknatıslardan uzaklaşın.",
-      by_city: "{c} için" },
-    uz: { qibla: "Qibla", from_north: "shimoldan soat yo'nalishida", km: "Ka'bagacha {d} km", start: "Kompasni yoqish",
-      locating: "Joylashuv aniqlanmoqda…", no_geo: "Joylashuvni aniqlab bo'lmadi. Ruxsat bering va kompasni qayta oching.",
-      turn_right: "O'ngga {d}° buriling", turn_left: "Chapga {d}° buriling", aligned: "Siz Qiblaga qarab turibsiz",
-      sub_turn: "Telefonni gorizontal ushlang. Shkaladagi Ka'bani yuqoridagi belgining ostiga keltiring.",
-      sub_ok: "Yo'nalishingiz Qiblaga mos",
-      press_start: "Telefon sensorlarini yoqish uchun bosing", denied: "Sensorlarga ruxsat yo'q. Brauzer sozlamalarida ruxsat bering.",
-      no_compass: "Bu qurilmada kompas yo'q. Shimolga qarab, soat yo'nalishida {d}° buriling.",
-      calib: "Kompas noaniq: telefon bilan havoda 8 raqamini chizing, metall va magnitlardan uzoqlashing.",
-      by_city: "{c} bo'yicha" },
-  };
-
-  /* Язык: ?lang=, затем язык Telegram, затем браузер */
-  var params = new URLSearchParams(location.search);
-  var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  var hubLang = null;
-  try { hubLang = JSON.parse(localStorage.getItem("mh:lang") || "null"); } catch (e) { /* не в хабе */ }
-  var code = (params.get("lang") || hubLang || (user && user.language_code) || navigator.language || "ru").slice(0, 2).toLowerCase();
-  if (["uk", "be", "kk", "ky", "tg", "tt", "ba"].indexOf(code) >= 0) code = "ru";
-  var L = T[code] ? code : "en";
-  var tr = function (k, v) { var s = T[L][k]; if (v) for (var x in v) s = s.split("{" + x + "}").join(v[x]); return s; };
-  document.documentElement.lang = L;
-  if (L === "ar") document.documentElement.dir = "rtl";
-
-  var $ = function (id) { return document.getElementById(id); };
-  var dial = $("dial"), compass = $("compass"), startBtn = $("start");
-  $("t-label").textContent = tr("qibla");
-  startBtn.textContent = tr("start");
-  $("calib-text").textContent = tr("calib");
-  document.title = tr("qibla");
-
-  /* ---------- Тема и Telegram ---------- */
-  // По умолчанию тёмная; в хабе — та, что человек выбрал переключателем (mh:theme)
-  function applyTheme() {
-    var saved = null;
-    try { saved = JSON.parse(localStorage.getItem("mh:theme") || "null"); } catch (e) { /* не в хабе */ }
-    var scheme = saved === "light" ? "light" : "dark";
-    document.documentElement.dataset.theme = scheme;
-    if (ver("6.9")) {
-      var bg = getComputedStyle(document.documentElement).getPropertyValue("--ground").trim();
-      try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch (e) { /* старый клиент */ }
-    }
-  }
-  if (tg) {
-    try {
-      tg.ready(); tg.expand();
-      if (ver("7.7")) tg.disableVerticalSwipes();
-      // Весь экран на телефонах (Bot API 8.0); отступ — чёлка + кнопки Telegram
-      if ((tg.platform === "android" || tg.platform === "ios") && ver("8.0") && typeof tg.requestFullscreen === "function") {
-        var applyInsets = function () {
-          var sa = tg.safeAreaInset || {}, csa = tg.contentSafeAreaInset || {};
-          var top = (sa.top || 0) + (csa.top || 0), bottom = (sa.bottom || 0) + (csa.bottom || 0);
-          var root = document.documentElement;
-          root.style.setProperty("--tg-top", top + "px");
-          root.style.setProperty("--tg-bottom", bottom + "px");
-          root.toggleAttribute("data-fs", top > 0);
+    
+    <div class="info">
+        <h1 id="angleText">--°</h1>
+        <p id="statusText">Loading...</p>
+    </div>
+    
+    <div class="infinity-icon">
+        <svg viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg">
+            <!-- Знак бесконечности -->
+            <path d="M 30 30 C 30 20, 40 15, 50 20 C 60 25, 60 25, 70 20 C 80 15, 90 20, 90 30 C 90 40, 80 45, 70 40 C 60 35, 60 35, 50 40 C 40 45, 30 40, 30 30 Z" 
+                  fill="none" 
+                  stroke="#ff0055" 
+                  stroke-width="4" 
+                  stroke-linecap="round"
+                  stroke-linejoin="round"/>
+            
+            <!-- Стрелочка 1 (левая верхняя) -->
+            <g class="arrow1">
+                <circle cx="35" cy="22" r="3" fill="#ff0055"/>
+                <path d="M 35 22 L 32 26 M 35 22 L 38 24" 
+                      stroke="#ff0055" 
+                      stroke-width="3.5" 
+                      stroke-linecap="round"
+                      fill="none"/>
+            </g>
+            
+            <!-- Стрелочка 2 (правая нижняя) -->
+            <g class="arrow2">
+                <circle cx="85" cy="38" r="3" fill="#ff0055"/>
+                <path d="M 85 38 L 88 34 M 85 38 L 82 36" 
+                      stroke="#ff0055" 
+                      stroke-width="3.5" 
+                      stroke-linecap="round"
+                      fill="none"/>
+            </g>
+        </svg>
+    </div>
+    
+    <div class="calibration-info">
+        <p id="calibrationText">Calibration tip loading...</p>
+    </div>
+    
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        
+        // Переводы
+        const translations = {
+            ru: {
+                start: "🚀 СТАРТ",
+                qibla: "Кибла",
+                loading: "Загрузка...",
+                requestingGeo: "Запрос геолокации...",
+                invalidCoords: "Ошибка: Неверные координаты",
+                geoError: "Не удалось получить геолокацию",
+                geoNotSupported: "Геолокация не поддерживается",
+                pressStart: "Нажмите кнопку СТАРТ",
+                launchingCompass: "Запуск компаса...",
+                allowAccess: "⛔ Разрешите доступ к датчикам!",
+                accessError: "⛔ Ошибка доступа",
+                rotatePhone: "🧭 Вращайте телефон",
+                compassNotSupported: "⛔ Компас не поддерживается",
+                calibrationTip: "Вращайте телефон пока компас не совпадёт с реальным направлением. Для калибровки нарисуйте восьмёрку в воздухе."
+            },
+            en: {
+                start: "🚀 START",
+                qibla: "Qibla",
+                loading: "Loading...",
+                requestingGeo: "Requesting geolocation...",
+                invalidCoords: "Error: Invalid coordinates",
+                geoError: "Failed to get geolocation",
+                geoNotSupported: "Geolocation not supported",
+                pressStart: "Press START button",
+                launchingCompass: "Launching compass...",
+                allowAccess: "⛔ Please allow sensor access!",
+                accessError: "⛔ Access error",
+                rotatePhone: "🧭 Rotate your phone",
+                compassNotSupported: "⛔ Compass not supported",
+                calibrationTip: "If compass is inaccurate, calibrate it by moving your phone in a figure-8 motion or open your device's native compass app."
+            },
+            ar: {
+                start: "🚀 ابدأ",
+                qibla: "القبلة",
+                loading: "جاري التحميل...",
+                requestingGeo: "طلب الموقع...",
+                invalidCoords: "خطأ: إحداثيات غير صحيحة",
+                geoError: "فشل الحصول على الموقع",
+                geoNotSupported: "الموقع غير مدعوم",
+                pressStart: "اضغط على زر ابدأ",
+                launchingCompass: "بدء البوصلة...",
+                allowAccess: "⛔ يرجى السماح بالوصول إلى المستشعرات!",
+                accessError: "⛔ خطأ في الوصول",
+                rotatePhone: "🧭 قم بتدوير الهاتف",
+                compassNotSupported: "⛔ البوصلة غير مدعومة",
+                calibrationTip: "إذا كانت البوصلة غير دقيقة، قم بمعايرتها عن طريق تحريك هاتفك على شكل رقم 8 أو افتح تطبيق البوصلة الأصلي على جهازك."
+            },
+            tr: {
+                start: "🚀 BAŞLAT",
+                qibla: "Kıble",
+                loading: "Yükleniyor...",
+                requestingGeo: "Konum isteniyor...",
+                invalidCoords: "Hata: Geçersiz koordinatlar",
+                geoError: "Konum alınamadı",
+                geoNotSupported: "Konum desteklenmiyor",
+                pressStart: "BAŞLAT butonuna basın",
+                launchingCompass: "Pusula başlatılıyor...",
+                allowAccess: "⛔ Lütfen sensör erişimine izin verin!",
+                accessError: "⛔ Erişim hatası",
+                rotatePhone: "🧭 Telefonunuzu döndürün",
+                compassNotSupported: "⛔ Pusula desteklenmiyor",
+                calibrationTip: "Pusula yanlış gösteriyorsa, kalibre edin: telefonunuzu havada 8 şeklinde hareket ettirin veya cihazınızın varsayılan pusula uygulamasını açın."
+            },
+            uz: {
+                start: "🚀 BOSHLASH",
+                qibla: "Qibla",
+                loading: "Yuklanmoqda...",
+                requestingGeo: "Joylashuv so'ralmoqda...",
+                invalidCoords: "Xato: Noto'g'ri koordinatalar",
+                geoError: "Joylashuvni olishda xatolik",
+                geoNotSupported: "Joylashuv qo'llab-quvvatlanmaydi",
+                pressStart: "BOSHLASH tugmasini bosing",
+                launchingCompass: "Kompas ishga tushirilmoqda...",
+                allowAccess: "⛔ Iltimos, sensorlarga ruxsat bering!",
+                accessError: "⛔ Ruxsat xatosi",
+                rotatePhone: "🧭 Telefoningizni aylantiring",
+                compassNotSupported: "⛔ Kompas qo'llab-quvvatlanmaydi",
+                calibrationTip: "Agar kompas noto'g'ri ko'rsatayotgan bo'lsa, kalibratsiya qiling: telefoningizni havoda 8 raqami shaklida harakatlantiring yoki qurilmangizning asosiy kompas ilovasini oching."
+            }
         };
-        ["fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged", "fullscreenFailed"].forEach(function (ev) { tg.onEvent(ev, applyInsets); });
-        if (!tg.isFullscreen) tg.requestFullscreen();
-        applyInsets();
-        setTimeout(applyInsets, 400);
-      }
-      // Внутри хаба — кнопка «Назад» возвращает в «Для мусульман»
-      if (location.pathname.indexOf("/hub/qibla") >= 0 && tg.BackButton) {
-        tg.BackButton.show();
-        tg.BackButton.onClick(function () {
-          if (history.length > 1 && document.referrer.indexOf("/hub/") >= 0) history.back(); else location.replace("../");
-        });
-      }
-    } catch (e) { /* вне Telegram */ }
-  }
-  applyTheme();
+        
+        // Определение языка
+        let userLang = 'en';
+        try {
+            const tgUser = tg.initDataUnsafe?.user;
+            if (tgUser && tgUser.language_code) {
+                const langCode = tgUser.language_code.toLowerCase();
+                // Проверяем первые 2 символа для совместимости
+                const shortCode = langCode.substring(0, 2);
+                
+                if (translations[langCode]) {
+                    userLang = langCode;
+                } else if (translations[shortCode]) {
+                    userLang = shortCode;
+                }
+            }
+        } catch (e) {
+            console.log('Could not get Telegram user language');
+        }
+        
+        // Если язык не поддерживается, используем английский
+        if (!translations[userLang]) {
+            userLang = 'en';
+        }
+        
+        console.log('Detected language:', userLang); // Для отладки
+        
+        const t = translations[userLang];
+        
+        const KAABA = { lat: 21.422487, lng: 39.826206 };
+        let qiblaAngle = 0;
+        
+        const disk = document.getElementById('compassDisk');
+        const pointer = document.getElementById('qiblaPointer');
+        const kaabaIcon = document.getElementById('kaabaIcon');
+        const angleText = document.getElementById('angleText');
+        const statusText = document.getElementById('statusText');
+        const startButton = document.getElementById('startButton');
+        const calibrationText = document.getElementById('calibrationText');
 
-  /* ---------- Шкала ---------- */
-  var KAABA_SVG = '<g class="kaaba"><rect x="-11" y="-11" width="22" height="22" rx="2.5" fill="#161616" stroke="#f5c542" stroke-width="1.2"/>' +
-    '<rect x="-11" y="-5.5" width="22" height="3.6" fill="#f5c542"/><rect x="-3" y="2" width="6" height="9" rx="1" fill="#f5c542" opacity=".85"/></g>';
-  function buildDial(qibla) {
-    var h = '<circle class="dial__face" r="150"/><circle class="dial__rim" r="150"/><circle class="dial__stitch" r="142"/>';
-    for (var a = 0; a < 360; a += 5) {
-      var major = a % 30 === 0, r1 = 136, r2 = major ? 120 : 128;
-      var rad = (a - 90) * Math.PI / 180;
-      h += '<line class="dial__tick' + (major ? " dial__tick--major" : "") + '" x1="' + (Math.cos(rad) * r1).toFixed(1) + '" y1="' + (Math.sin(rad) * r1).toFixed(1) +
-        '" x2="' + (Math.cos(rad) * r2).toFixed(1) + '" y2="' + (Math.sin(rad) * r2).toFixed(1) + '"/>';
-    }
-    var cards = [["N", 0], ["E", 90], ["S", 180], ["W", 270]];
-    cards.forEach(function (c) {
-      var rad = (c[1] - 90) * Math.PI / 180;
-      h += '<text class="dial__card' + (c[0] === "N" ? " dial__card--n" : "") + '" x="' + (Math.cos(rad) * 104).toFixed(1) + '" y="' + (Math.sin(rad) * 104).toFixed(1) + '">' + c[0] + "</text>";
-    });
-    if (qibla != null) {
-      var qr = (qibla - 90) * Math.PI / 180;
-      h += '<line class="dial__qibla-line" x1="0" y1="0" x2="' + (Math.cos(qr) * 112).toFixed(1) + '" y2="' + (Math.sin(qr) * 112).toFixed(1) + '"/>';
-      h += '<g transform="translate(' + (Math.cos(qr) * 156).toFixed(1) + " " + (Math.sin(qr) * 156).toFixed(1) + ")\">" + KAABA_SVG + "</g>";
-    }
-    $("dial-svg").innerHTML = h;
-  }
-  buildDial(null);
+        // Устанавливаем переводы
+        startButton.textContent = '🚀 START';
+        statusText.textContent = t.loading;
+        calibrationText.textContent = t.calibrationTip;
 
-  /* ---------- Расчёт ---------- */
-  function qiblaBearing(lat, lon) {
-    var p1 = lat * Math.PI / 180, p2 = KAABA.lat * Math.PI / 180, dl = (KAABA.lon - lon) * Math.PI / 180;
-    var y = Math.sin(dl), x = Math.cos(p1) * Math.tan(p2) - Math.sin(p1) * Math.cos(dl);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-  }
-  function distanceKm(lat, lon) {
-    var R = 6371, p1 = lat * Math.PI / 180, p2 = KAABA.lat * Math.PI / 180;
-    var dp = p2 - p1, dl = (KAABA.lon - lon) * Math.PI / 180;
-    var a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
-    return 2 * R * Math.asin(Math.sqrt(a));
-  }
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const latParam = urlParams.get('lat');
+            const lonParam = urlParams.get('lon');
+            
+            if (latParam && lonParam) {
+                const lat = parseFloat(latParam);
+                const lon = parseFloat(lonParam);
+                
+                if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                    statusText.innerText = t.invalidCoords;
+                    statusText.classList.add('error');
+                } else {
+                    initQibla(lat, lon);
+                }
+            } else {
+                requestGeolocation();
+            }
+        };
 
-  var qibla = null;
-  function setLocation(lat, lon, cityName) {
-    qibla = qiblaBearing(lat, lon);
-    $("deg").innerHTML = Math.round(qibla) + "<small>°</small>";
-    var km = Math.round(distanceKm(lat, lon)).toLocaleString(L === "ar" ? "ar-u-nu-latn" : L);
-    $("meta").textContent = tr("from_north") + " · " + tr("km", { d: km }) + (cityName ? " · " + tr("by_city", { c: cityName }) : "");
-    buildDial(qibla);
-    prepareSensors();
-  }
+        function requestGeolocation() {
+            statusText.innerText = t.requestingGeo;
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        initQibla(lat, lon);
+                    },
+                    function(error) {
+                        statusText.innerText = t.geoError;
+                        statusText.classList.add('error');
+                        console.error("Geolocation:", error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                statusText.innerText = t.geoNotSupported;
+                statusText.classList.add('error');
+            }
+        }
 
-  /* ---------- Местоположение: ?lat&lon → Telegram → браузер → город из хаба ---------- */
-  function hubCity() {
-    try { var c = JSON.parse(localStorage.getItem("mh:prayer") || "null"); return c && c.city; } catch (e) { return null; }
-  }
-  function locate() {
-    var lat = parseFloat(params.get("lat")), lon = parseFloat(params.get("lon") || params.get("lng"));
-    if (isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return setLocation(lat, lon);
-    $("hint-main").textContent = tr("locating");
-    var fallback = function () {
-      var c = hubCity();
-      if (c && isFinite(c.lat)) return setLocation(c.lat, c.lon, c.name);
-      $("hint-main").textContent = "";
-      $("hint-sub").textContent = tr("no_geo");
-    };
-    var viaBrowser = function () {
-      if (!navigator.geolocation) return fallback();
-      navigator.geolocation.getCurrentPosition(function (p) { setLocation(p.coords.latitude, p.coords.longitude); },
-        fallback, { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 });
-    };
-    if (ver("8.0") && tg.LocationManager) {
-      var lm = tg.LocationManager;
-      var ask = function () {
-        if (!lm.isLocationAvailable) return viaBrowser();
-        lm.getLocation(function (loc) { if (loc) setLocation(loc.latitude, loc.longitude); else viaBrowser(); });
-      };
-      if (lm.isInited) ask(); else lm.init(ask);
-    } else viaBrowser();
-  }
+        function initQibla(lat, lng) {
+            qiblaAngle = calculateQibla(lat, lng);
+            angleText.innerText = `${t.qibla}: ${Math.round(qiblaAngle)}°`;
+            statusText.innerText = t.pressStart;
+            statusText.classList.remove('error');
+            pointer.style.display = 'block';
+            kaabaIcon.style.display = 'block';
+            pointer.style.transform = `translate(-50%, -100%) rotate(${qiblaAngle}deg)`;
+            
+            startButton.classList.remove('hidden');
+            
+            startButton.onclick = function() {
+                startButton.classList.add('hidden');
+                requestPermission();
+            };
+        }
 
-  /* ---------- Датчики ---------- */
-  var needsPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
-  var started = false;
-  function prepareSensors() {
-    if (started) return;
-    if (needsPermission) {
-      // iOS: доступ к датчикам — только по нажатию
-      startBtn.hidden = false;
-      $("hint-main").textContent = "";
-      $("hint-sub").textContent = tr("press_start");
-    } else startSensors();
-  }
-  startBtn.addEventListener("click", function () {
-    DeviceOrientationEvent.requestPermission().then(function (res) {
-      if (res === "granted") { startBtn.hidden = true; startSensors(); }
-      else $("hint-sub").textContent = tr("denied");
-    }).catch(function () { $("hint-sub").textContent = tr("denied"); });
-  });
+        function calculateQibla(lat, lng) {
+            const PI = Math.PI;
+            const latk = KAABA.lat * PI / 180.0;
+            const longk = KAABA.lng * PI / 180.0;
+            const phi = lat * PI / 180.0;
+            const lambda = lng * PI / 180.0;
+            const y = Math.sin(longk - lambda);
+            const x = Math.cos(phi) * Math.tan(latk) - Math.sin(phi) * Math.cos(longk - lambda);
+            return (Math.atan2(y, x) * 180.0 / PI + 360) % 360;
+        }
 
-  var gotHeading = false;
-  function startSensors() {
-    started = true;
-    $("hint-main").textContent = "";
-    $("hint-sub").textContent = tr("sub_turn");
-    if ("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onOrient);
-    else window.addEventListener("deviceorientation", onOrient);
-    // Через 2,5 с без данных — компаса нет (компьютер, старый телефон)
-    setTimeout(function () {
-      if (!gotHeading && qibla != null) {
-        $("hint-main").textContent = "";
-        $("hint-sub").textContent = tr("no_compass", { d: Math.round(qibla) });
-      }
-    }, 2500);
-    requestAnimationFrame(frame);
-  }
+        function requestPermission() {
+            statusText.innerText = t.launchingCompass;
+            
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            startCompass();
+                        } else {
+                            statusText.innerText = t.allowAccess;
+                            statusText.classList.add('error');
+                            startButton.classList.remove('hidden');
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        statusText.innerText = t.accessError;
+                        statusText.classList.add('error');
+                        startButton.classList.remove('hidden');
+                    });
+            } else {
+                startCompass();
+            }
+        }
 
-  function screenAngle() {
-    var o = screen.orientation && typeof screen.orientation.angle === "number" ? screen.orientation.angle : (window.orientation || 0);
-    return o || 0;
-  }
+        function startCompass() {
+            statusText.innerText = t.rotatePhone;
+            statusText.classList.remove('error');
+            
+            if ('ondeviceorientationabsolute' in window) {
+                window.addEventListener('deviceorientationabsolute', handleOrientation);
+            } else if ('ondeviceorientation' in window) {
+                window.addEventListener('deviceorientation', handleOrientation);
+            } else {
+                statusText.innerText = t.compassNotSupported;
+                statusText.classList.add('error');
+            }
+        }
 
-  /* Сглаживание через вектор (sin, cos): нет скачка 359° → 0° */
-  var sx = 0, sy = 0, hasSmooth = false;
-  function onOrient(e) {
-    var heading = null, accurate = true;
-    if (e.webkitCompassHeading != null && !isNaN(e.webkitCompassHeading)) {
-      heading = e.webkitCompassHeading;                       // iOS: уже от севера
-      if (e.webkitCompassAccuracy != null && (e.webkitCompassAccuracy < 0 || e.webkitCompassAccuracy > 25)) accurate = false;
-    } else if (e.alpha != null) {
-      if (e.type === "deviceorientation" && e.absolute !== true) accurate = false;   // не привязан к северу
-      heading = (360 - e.alpha) % 360;
-    }
-    if (heading == null) return;
-    heading = (heading + screenAngle()) % 360;
-    gotHeading = true;
-    $("calib").classList.toggle("is-on", !accurate);
-    var r = heading * Math.PI / 180, k = hasSmooth ? 0.18 : 1;
-    sx += (Math.sin(r) - sx) * k;
-    sy += (Math.cos(r) - sy) * k;
-    hasSmooth = true;
-  }
-
-  var shown = 0, wasAligned = false;
-  function frame() {
-    requestAnimationFrame(frame);
-    if (!hasSmooth || qibla == null) return;
-    var heading = (Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360;
-    // Поворот шкалы накапливается без обрыва: кратчайший путь до нового угла
-    var target = -heading;
-    var delta = ((target - shown) % 360 + 540) % 360 - 180;
-    shown += delta;
-    dial.style.transform = "rotate(" + shown.toFixed(2) + "deg)";
-
-    var diff = ((qibla - heading) % 360 + 540) % 360 - 180;   // >0 — Кибла правее
-    var aligned = Math.abs(diff) <= ALIGN_DEG;
-    compass.classList.toggle("is-aligned", aligned);
-    var main = $("hint-main");
-    if (aligned) {
-      main.textContent = tr("aligned");
-      main.className = "hint__main is-ok";
-      $("hint-sub").textContent = tr("sub_ok");
-    } else {
-      var d = Math.round(Math.abs(diff));
-      var arrow = diff > 0 ? '<svg class="hint__arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' : '<svg class="hint__arrow" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>';
-      main.innerHTML = (diff > 0 ? tr("turn_right", { d: d }) : tr("turn_left", { d: d })) + " " + arrow;
-      main.className = "hint__main";
-      $("hint-sub").textContent = tr("sub_turn");
-    }
-    if (aligned && !wasAligned) {
-      try {
-        if (ver("6.1")) tg.HapticFeedback.notificationOccurred("success");
-        else if (navigator.vibrate) navigator.vibrate(40);
-      } catch (e) { /* без вибрации */ }
-    }
-    wasAligned = aligned;
-  }
-
-  locate();
-})();
-</script>
+        function handleOrientation(event) {
+            let alpha = event.alpha;
+            
+            if (event.webkitCompassHeading) {
+                alpha = event.webkitCompassHeading;
+            } else if (alpha !== null) {
+                alpha = 360 - alpha;
+            }
+            
+            if (alpha == null) return;
+            
+            disk.style.transform = `rotate(${-alpha}deg)`;
+            pointer.style.transform = `translate(-50%, -100%) rotate(${qiblaAngle - alpha}deg)`;
+            
+            // Обновляем отображаемый угол
+            const currentQiblaDirection = (qiblaAngle - alpha + 360) % 360;
+            angleText.innerText = `${t.qibla}: ${Math.round(currentQiblaDirection)}°`;
+        }
+    </script>
 </body>
 </html>
