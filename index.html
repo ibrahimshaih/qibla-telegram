@@ -212,8 +212,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   document.title = tr("qibla");
 
   /* ---------- Тема и Telegram ---------- */
+  // По умолчанию тёмная; в хабе — та, что человек выбрал переключателем (mh:theme)
   function applyTheme() {
-    var scheme = (tg && tg.colorScheme) || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem("mh:theme") || "null"); } catch (e) { /* не в хабе */ }
+    var scheme = saved === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = scheme;
     if (ver("6.9")) {
       var bg = getComputedStyle(document.documentElement).getPropertyValue("--ground").trim();
@@ -224,7 +227,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     try {
       tg.ready(); tg.expand();
       if (ver("7.7")) tg.disableVerticalSwipes();
-      tg.onEvent("themeChanged", applyTheme);
       // Внутри хаба — кнопка «Назад» возвращает в «Для мусульман»
       if (location.pathname.indexOf("/hub/qibla") >= 0 && tg.BackButton) {
         tg.BackButton.show();
